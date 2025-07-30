@@ -348,3 +348,4 @@ export function WithdrawalSection() {
       </Card>
     </div>
   );
+}
