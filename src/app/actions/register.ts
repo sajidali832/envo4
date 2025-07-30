@@ -90,7 +90,10 @@ export async function registerUser(prevState: any, formData: FormData) {
 
   if (profileError) {
     // Attempt to clean up the auth user if profile creation fails
-    await supabase.auth.admin.deleteUser(user.id);
+    const { data: adminUser, error: adminError } = await supabase.auth.admin.deleteUser(user.id);
+    if(adminError) {
+        console.error('Failed to cleanup auth user', adminError);
+    }
     return { type: 'error', message: `Could not create user profile: ${profileError.message}` };
   }
 
@@ -110,10 +113,9 @@ export async function registerUser(prevState: any, formData: FormData) {
       .limit(1);
   }
 
-  // 6. Return success with user details for email sending
+  // 6. Return success
   return { 
     type: 'success', 
     message: 'Registration successful!',
-    user: { email, username } 
   };
 }
