@@ -10,7 +10,7 @@ export async function sendWelcomeEmail(email: string, username: string) {
     const { data, error } = await resend.emails.send({
       from: "ENVO-EARN <onboarding@resend.dev>",
       to: [email],
-      subject: "Welcome to ENVO-EARN!",
+      subject: "Welcome to ENVO EARN - Your Account is Ready!",
       html: `
         <!DOCTYPE html>
         <html lang="en" style="font-family: Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0;">
