@@ -34,7 +34,7 @@ export async function sendWelcomeEmail(email: string, username: string) {
                   Your ENVO EARN account is now *active* and your daily earning of <strong>200 PKR</strong> has started.  
                   Check your dashboard to view your investment and earnings.
                 </p>
-                <a href="https://envo-earn.vercel.app/dashboard" style="display:inline-block; margin-top:20px; background-color:#004d4d; color:#ffffff; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:bold;">
+                <a href="https://envo-investment.vercel.app/dashboard" style="display:inline-block; margin-top:20px; background-color:#004d4d; color:#ffffff; text-decoration:none; padding:12px 24px; border-radius:6px; font-weight:bold;">
                   Go to Dashboard
                 </a>
                 <p style="margin-top:30px; font-size: 14px; color: #777777;">
