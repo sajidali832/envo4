@@ -11,6 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { createClient } from '@/lib/supabase/client';
+import { sendWelcomeEmail } from '@/app/actions/email';
 
 const registerSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters.').max(20, 'Username must be less than 20 characters.'),
@@ -134,11 +135,13 @@ export function RegisterForm() {
             .order('created_at', { ascending: false })
             .limit(1);
     }
-
+    
+    // 7. Send welcome email
+    await sendWelcomeEmail(values.email, values.username);
 
     toast({
       title: 'Registration Successful',
-      description: "Welcome to ENVO-EARN! You are now logged in.",
+      description: "Welcome to ENVO-EARN! A confirmation email has been sent.",
     });
     router.push('/dashboard');
     router.refresh(); 
