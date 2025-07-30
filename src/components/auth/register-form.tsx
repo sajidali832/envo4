@@ -1,10 +1,11 @@
 
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useFormState, useFormStatus } from 'react-dom';
 import { registerUser } from '@/app/actions/register';
+import { sendWelcomeEmail } from '@/app/actions/email';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +16,7 @@ import { Terminal } from 'lucide-react';
 const initialState = {
   type: null,
   message: '',
+  user: null,
 };
 
 function SubmitButton() {
@@ -31,23 +33,44 @@ export function RegisterForm() {
   const searchParams = useSearchParams();
   const phone = searchParams.get('phone');
   const [state, formAction] = useFormState(registerUser, initialState);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
-    if (state.type === 'success') {
-      toast({
-        title: 'Registration Successful',
-        description: "Welcome to ENVO-EARN! Redirecting you to the dashboard.",
-      });
-      router.push('/dashboard');
+    async function handleRegistrationSuccess() {
+      if (state.type === 'success' && state.user && !isRedirecting) {
+        setIsRedirecting(true); // Prevent this from running multiple times
+        toast({
+          title: 'Registration Successful',
+          description: "Welcome to ENVO-EARN! Sending welcome email...",
+        });
+        
+        // Now call the email function
+        const emailResult = await sendWelcomeEmail(state.user.email, state.user.username);
+        
+        if (!emailResult.success) {
+            console.error("Failed to send welcome email:", emailResult.error);
+            toast({
+                variant: 'destructive',
+                title: 'Email Failed',
+                description: "Could not send welcome email, but your account is active."
+            })
+        }
+
+        // Redirect after attempting to send email
+        router.push('/dashboard');
+      }
+      if (state.type === 'error') {
+        toast({
+          variant: 'destructive',
+          title: 'Registration Failed',
+          description: state.message,
+        });
+      }
     }
-    if (state.type === 'error') {
-      toast({
-        variant: 'destructive',
-        title: 'Registration Failed',
-        description: state.message,
-      });
-    }
-  }, [state, router]);
+    
+    handleRegistrationSuccess();
+
+  }, [state, router, isRedirecting]);
 
   if (!phone) {
     return (

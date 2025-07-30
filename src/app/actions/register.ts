@@ -3,7 +3,6 @@
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
-import { sendWelcomeEmail } from './email';
 
 const registerSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters.').max(20, 'Username must be less than 20 characters.'),
@@ -28,7 +27,6 @@ export async function registerUser(prevState: any, formData: FormData) {
   
   const { username, email, password, phone } = validatedFields.data;
 
-  // 1. Verify approved payment submission for the phone number
   const { data: submission, error: submissionError } = await supabase
     .from('payment_submissions')
     .select('id, status, referrer_id')
@@ -41,7 +39,6 @@ export async function registerUser(prevState: any, formData: FormData) {
     return { type: 'error', message: 'No approved payment found for your phone number.' };
   }
 
-  // 2. Check for existing profile (username or email)
   const { data: existingProfile } = await supabase
     .from('profiles')
     .select('username, email')
@@ -57,10 +54,14 @@ export async function registerUser(prevState: any, formData: FormData) {
     }
   }
 
-  // 3. Sign up the user (creates the auth.users record)
   const { data: { user }, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
+    options: {
+        data: {
+            username: username,
+        }
+    }
   });
 
   if (signUpError) {
@@ -70,10 +71,8 @@ export async function registerUser(prevState: any, formData: FormData) {
     return { type: 'error', message: 'Could not create user account. Please try again.' };
   }
 
-  // Determine initial balance from referral status
   const initialBalance = submission.referrer_id ? 200 : 0;
 
-  // 4. Create the public user profile
   const { error: profileError } = await supabase
     .from('profiles')
     .insert({
@@ -86,18 +85,14 @@ export async function registerUser(prevState: any, formData: FormData) {
     });
 
   if (profileError) {
-    // This is critical. If profile fails, we should ideally roll back the auth user.
-    // For now, returning a clear error is the most important step.
     return { type: 'error', message: `Could not create user profile: ${profileError.message}` };
   }
 
-  // 5. Link submission to the new user and update their email in the submission record
   await supabase
     .from('payment_submissions')
     .update({ user_id: user.id, user_email: email })
     .eq('id', submission.id);
 
-  // 6. If referred, update the referral record with the new user's ID
   if (submission.referrer_id) {
     await supabase
       .from('referrals')
@@ -108,13 +103,9 @@ export async function registerUser(prevState: any, formData: FormData) {
       .limit(1);
   }
 
-  // 7. Send the welcome email
-  const emailResult = await sendWelcomeEmail(email, username);
-  if (!emailResult.success) {
-      // Log this but don't block user creation.
-      console.error("Failed to send welcome email:", emailResult.error);
-  }
-
-  // 8. If all successful, return success state
-  return { type: 'success', message: 'Registration successful!' };
+  return { 
+    type: 'success', 
+    message: 'Registration successful!',
+    user: { email, username } 
+  };
 }
