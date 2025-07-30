@@ -59,8 +59,9 @@ export async function sendWelcomeEmail(email: string, username: string) {
     }
 
     return { success: true, data };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to send email:", error);
-    return { success: false, error: "An unexpected error occurred." };
+    // Ensure we return the actual error message from the catch block
+    return { success: false, error: error?.message || "An unexpected error occurred." };
   }
 }
