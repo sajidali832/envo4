@@ -27,6 +27,7 @@ export async function registerUser(prevState: any, formData: FormData) {
   
   const { username, email, password, phone } = validatedFields.data;
 
+  // 1. Check if payment is approved for the given phone number
   const { data: submission, error: submissionError } = await supabase
     .from('payment_submissions')
     .select('id, status, referrer_id')
@@ -39,6 +40,7 @@ export async function registerUser(prevState: any, formData: FormData) {
     return { type: 'error', message: 'No approved payment found for your phone number.' };
   }
 
+  // 2. Check for existing username or email
   const { data: existingProfile } = await supabase
     .from('profiles')
     .select('username, email')
@@ -54,6 +56,7 @@ export async function registerUser(prevState: any, formData: FormData) {
     }
   }
 
+  // 3. Create the user in Auth
   const { data: { user }, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -71,6 +74,7 @@ export async function registerUser(prevState: any, formData: FormData) {
     return { type: 'error', message: 'Could not create user account. Please try again.' };
   }
 
+  // 4. Create the user profile with initial balance if referred
   const initialBalance = submission.referrer_id ? 200 : 0;
 
   const { error: profileError } = await supabase
@@ -85,9 +89,12 @@ export async function registerUser(prevState: any, formData: FormData) {
     });
 
   if (profileError) {
+    // Attempt to clean up the auth user if profile creation fails
+    await supabase.auth.admin.deleteUser(user.id);
     return { type: 'error', message: `Could not create user profile: ${profileError.message}` };
   }
 
+  // 5. Update related records
   await supabase
     .from('payment_submissions')
     .update({ user_id: user.id, user_email: email })
@@ -99,10 +106,11 @@ export async function registerUser(prevState: any, formData: FormData) {
       .update({ referred_user_id: user.id })
       .eq('referrer_id', submission.referrer_id)
       .is('referred_user_id', null)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true }) // Update oldest pending referral
       .limit(1);
   }
 
+  // 6. Return success with user details for email sending
   return { 
     type: 'success', 
     message: 'Registration successful!',
