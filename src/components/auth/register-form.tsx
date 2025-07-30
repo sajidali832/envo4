@@ -1,9 +1,9 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useActionState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useFormStatus } from 'react-dom';
 import { registerUser } from '@/app/actions/register';
 import { sendWelcomeEmail } from '@/app/actions/email';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ export function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const phone = searchParams.get('phone');
-  const [state, formAction] = useFormState(registerUser, initialState);
+  const [state, formAction] = useActionState(registerUser, initialState);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
