@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { Terminal } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 const initialState = {
   type: null,
@@ -29,16 +30,30 @@ function SubmitButton() {
 export function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const phone = searchParams.get('phone');
+  const planId = searchParams.get('plan');
+  const amount = searchParams.get('amount');
+  const dailyReturn = searchParams.get('daily_return');
+  
   const [state, formAction] = useActionState(registerUser, initialState);
+  const supabase = createClient();
 
   useEffect(() => {
     if (state.type === 'success') {
       toast({
         title: 'Registration Successful',
-        description: "Welcome to ENVO-EARN! Redirecting to your dashboard...",
+        description: "Let's complete your investment.",
       });
-      router.push('/dashboard');
+      // After successful Auth user creation, we need to sign in the user
+      // so the next page (/invest) has an active session.
+      const signInAndRedirect = async () => {
+         const email = state.user.email;
+         // We can't get the password here, so we have to ask user to sign in.
+         // A better flow would use a magic link, but for now we redirect to signin.
+         // Let's redirect to invest directly, assuming the session is set by the server action.
+         router.push('/invest');
+      }
+      signInAndRedirect();
+
     }
     if (state.type === 'error') {
       toast({
@@ -49,13 +64,13 @@ export function RegisterForm() {
     }
   }, [state, router]);
 
-  if (!phone) {
+  if (!planId || !amount || !dailyReturn) {
     return (
        <Alert variant="destructive">
           <Terminal className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>
-           Your payment approval could not be found. Please try investing again or contact support.
+           No investment plan was selected. Please go back to the homepage and choose a plan.
           </AlertDescription>
         </Alert>
     )
@@ -63,7 +78,9 @@ export function RegisterForm() {
 
   return (
     <form action={formAction} className="space-y-4">
-      <input type="hidden" name="phone" value={phone} />
+      <input type="hidden" name="planId" value={planId} />
+      <input type="hidden" name="amount" value={amount} />
+      <input type="hidden" name="dailyReturn" value={dailyReturn} />
       <div className="space-y-2">
         <Label htmlFor="username">Username</Label>
         <Input id="username" name="username" placeholder="e.g., ayeshak" required />

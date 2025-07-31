@@ -9,7 +9,9 @@ const registerSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters.').max(20, 'Username must be less than 20 characters.'),
   email: z.string().email('Please enter a valid email.'),
   password: z.string().min(8, 'Password must be at least 8 characters.'),
-  phone: z.string().min(11, 'Valid phone number is required for verification.'),
+  planId: z.string(),
+  amount: z.string(),
+  dailyReturn: z.string(),
 });
 
 export async function registerUser(prevState: any, formData: FormData) {
@@ -26,22 +28,9 @@ export async function registerUser(prevState: any, formData: FormData) {
     };
   }
   
-  const { username, email, password, phone } = validatedFields.data;
+  const { username, email, password, planId, amount, dailyReturn } = validatedFields.data;
 
-  // 1. Check if payment is approved for the given phone number
-  const { data: submission, error: submissionError } = await supabase
-    .from('payment_submissions')
-    .select('id, status, referrer_id, investment_amount, investment_plan_id, daily_return_amount')
-    .eq('account_number', phone)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (submissionError || !submission || submission.status !== 'approved') {
-    return { type: 'error', message: 'No approved payment found for your phone number.' };
-  }
-
-  // 2. Check for existing username or email
+  // Check for existing username or email in profiles table
   const { data: existingProfile } = await supabase
     .from('profiles')
     .select('username, email')
@@ -57,7 +46,7 @@ export async function registerUser(prevState: any, formData: FormData) {
     }
   }
 
-  // 3. Create the user in Auth
+  // Create the user in Auth
   const { data: { user }, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -75,23 +64,18 @@ export async function registerUser(prevState: any, formData: FormData) {
     return { type: 'error', message: 'Could not create user account. Please try again.' };
   }
 
-  // 4. Create the user profile with initial balance if referred
-  const initialBalance = submission.referrer_id ? 200 : 0;
-  
-  const referralBonusAmount = submission.investment_plan_id === '3' ? 800 : 200;
-
+  // Create the user profile with pending investment
   const { error: profileError } = await supabase
     .from('profiles')
     .insert({
       id: user.id,
       username: username,
       email: email,
-      investment_amount: submission.investment_amount,
-      investment_plan_id: submission.investment_plan_id,
-      daily_return_amount: submission.daily_return_amount,
-      invested: true,
-      investment_date: new Date().toISOString(),
-      balance: initialBalance,
+      investment_plan_id: planId,
+      investment_amount: Number(amount),
+      daily_return_amount: Number(dailyReturn),
+      invested: false, // User has not paid yet
+      balance: 0,
     });
 
   if (profileError) {
@@ -99,43 +83,11 @@ export async function registerUser(prevState: any, formData: FormData) {
     await supabase.auth.admin.deleteUser(user.id);
     return { type: 'error', message: `Could not create user profile: ${profileError.message}` };
   }
-
-  // 5. Update related records
-  await supabase
-    .from('payment_submissions')
-    .update({ user_id: user.id, user_email: email })
-    .eq('id', submission.id);
-
-  if (submission.referrer_id) {
-    // Give bonus to the referrer
-    const { data: referrerProfile, error: fetchError } = await supabase
-        .from('profiles')
-        .select('balance')
-        .eq('id', submission.referrer_id)
-        .single();
-    
-    if (referrerProfile) {
-        const newBalance = referrerProfile.balance + referralBonusAmount;
-        await supabase
-            .from('profiles')
-            .update({ balance: newBalance })
-            .eq('id', submission.referrer_id);
-    }
-
-    // Create a record in the referrals table
-    await supabase
-        .from('referrals')
-        .insert({
-            referrer_id: submission.referrer_id,
-            referred_user_id: user.id,
-            status: 'Invested',
-            bonus_amount: referralBonusAmount
-        });
-  }
-
-  // 6. Return success
+  
+  // Return success. The form will handle the redirect.
   return { 
     type: 'success', 
-    message: 'Registration successful!',
+    message: 'Registration successful! Redirecting to payment...',
+    user: { id: user.id, email: user.email, username }
   };
 }

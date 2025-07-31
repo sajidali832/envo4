@@ -4,6 +4,8 @@ import { RegisterForm } from '@/components/auth/register-form';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { EnvoEarnLogo } from '@/components/logo';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Loader } from '@/components/ui/loader';
+import Link from 'next/link';
 
 function RegisterPageFallback() {
   return (
@@ -42,11 +44,22 @@ function RegisterPageContent() {
           <EnvoEarnLogo />
         </div>
         <CardTitle className="font-headline text-2xl">Create Your Account</CardTitle>
-        <CardDescription>Your payment is approved! Let's get you set up.</CardDescription>
+        <CardDescription>First, let's create your account. You will submit payment after this step.</CardDescription>
       </CardHeader>
       <CardContent>
-        <RegisterForm />
+        <Suspense fallback={<Loader className="mx-auto" />}>
+            <RegisterForm />
+        </Suspense>
       </CardContent>
+       <CardFooter className="flex flex-col gap-4">
+          <p className="text-xs text-muted-foreground">
+            Already have an account?{' '}
+            <Link href="/signin" className="font-semibold text-primary hover:underline">
+              Sign In
+            </Link>
+            .
+          </p>
+        </CardFooter>
     </Card>
   )
 }

@@ -33,26 +33,39 @@ export function SignInForm() {
   async function onSubmit(values: z.infer<typeof signInSchema>) {
     setIsSubmitting(true);
     
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: { user }, error } = await supabase.auth.signInWithPassword({
         email: values.email,
         password: values.password,
     });
 
-    if (error) {
+    if (error || !user) {
       toast({
         variant: 'destructive',
         title: 'Login Failed',
-        description: error.message,
+        description: error?.message || "An unknown error occurred.",
       });
       setIsSubmitting(false);
-    } else {
-      toast({
+      return;
+    }
+    
+    // Check profile status
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('invested')
+        .eq('id', user.id)
+        .single();
+        
+    toast({
         title: 'Login Successful',
         description: 'Welcome back!',
-      });
-      router.push('/dashboard');
-      router.refresh(); // To trigger layout to refetch user session
+    });
+        
+    if (profile?.invested) {
+        router.push('/dashboard');
+    } else {
+        router.push('/invest');
     }
+    router.refresh();
   }
 
   return (

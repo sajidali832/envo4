@@ -12,12 +12,18 @@ import { Suspense } from 'react';
 function AuthStatus() {
   const searchParams = useSearchParams();
   const status = searchParams.get('status');
+  const action = searchParams.get('action');
 
-  if (status === 'approved') {
+  if (action === 'approve') {
     return (
-      <div className="mb-4 flex items-center gap-2 p-3 rounded-md bg-green-100 text-green-800 border border-green-200">
-        <CheckCircle className="h-5 w-5" />
-        <p className="text-sm font-medium">You are approved! Please sign in.</p>
+      <div className="mb-4 flex flex-col items-center gap-3 p-3 rounded-md bg-green-100 text-green-800 border border-green-200">
+        <div className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5" />
+            <p className="text-sm font-medium">Your payment was approved!</p>
+        </div>
+        <Button asChild variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
+            <Link href="/dashboard">Go to Dashboard</Link>
+        </Button>
       </div>
     )
   }
@@ -54,7 +60,7 @@ function SignInPageContent() {
             <EnvoEarnLogo />
           </div>
           <CardTitle className="font-headline text-2xl">Welcome Back</CardTitle>
-          <CardDescription>Sign in to access your dashboard.</CardDescription>
+          <CardDescription>Sign in to access your account.</CardDescription>
         </CardHeader>
         <CardContent>
           <AuthStatus />

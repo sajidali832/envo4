@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "@/hooks/use-toast";
-import { Copy, UploadCloud, Phone, User, Building, Landmark } from "lucide-react";
+import { Copy, UploadCloud, Phone, User, Building } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const paymentSchema = z.object({
@@ -22,20 +22,14 @@ const paymentSchema = z.object({
   screenshot: z.any().refine((files) => files?.length == 1, "A screenshot is required."),
 });
 
-const plans: {[key: string]: string} = {
-  "1": "Starter Plan",
-  "2": "Growth Plan",
-  "3": "Pro Investor"
-}
-
 interface PaymentFormProps {
-    referrerId?: string | null;
     planId: string;
     amount: number;
     dailyReturn: number;
+    planName: string;
 }
 
-export function PaymentForm({ referrerId, planId, amount, dailyReturn }: PaymentFormProps) {
+export function PaymentForm({ planId, amount, dailyReturn, planName }: PaymentFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const supabase = createClient();
@@ -62,9 +56,16 @@ export function PaymentForm({ referrerId, planId, amount, dailyReturn }: Payment
     setIsSubmitting(true);
     
     try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            toast({ variant: 'destructive', title: 'Not Authenticated', description: 'You must be logged in to submit payment.' });
+            router.push('/signin');
+            return;
+        }
+
         const screenshotFile = values.screenshot[0];
         const sanitizedFileName = screenshotFile.name.replace(/[^a-zA-Z0-9-._]/g, '');
-        const filePath = `${values.userPhone}/${Date.now()}_${sanitizedFileName}`;
+        const filePath = `${user.id}/${Date.now()}_${sanitizedFileName}`;
 
         const { error: uploadError } = await supabase.storage.from('payment-proofs').upload(filePath, screenshotFile);
 
@@ -73,14 +74,13 @@ export function PaymentForm({ referrerId, planId, amount, dailyReturn }: Payment
         const { data: publicUrlData } = supabase.storage.from('payment-proofs').getPublicUrl(filePath);
 
         const submissionData = {
-            user_id: null,
-            user_email: null, // User will provide this at registration
+            user_id: user.id,
+            user_email: user.email,
             account_name: values.accountName,
-            account_number: values.userPhone, // This is the key identifier now
+            account_number: values.userPhone,
             payment_platform: values.paymentPlatform,
             screenshot_url: publicUrlData.publicUrl,
             status: 'pending',
-            referrer_id: referrerId || null,
             investment_plan_id: planId,
             investment_amount: amount,
             daily_return_amount: dailyReturn,
@@ -89,12 +89,16 @@ export function PaymentForm({ referrerId, planId, amount, dailyReturn }: Payment
         const { error: dbError } = await supabase.from('payment_submissions').insert(submissionData);
 
         if (dbError) throw dbError;
+        
+        // Also update profile to indicate a submission is pending
+        await supabase.from('profiles').update({ invested: false, investment_date: new Date().toISOString() }).eq('id', user.id);
+
 
         toast({
           title: "Submission Successful!",
           description: "Your payment proof has been submitted for review.",
         });
-        router.push(`/invest/timer?phone=${values.userPhone}`);
+        router.push(`/invest/timer`);
 
     } catch (error: any) {
         console.error("Payment submission error:", error);
@@ -113,7 +117,7 @@ export function PaymentForm({ referrerId, planId, amount, dailyReturn }: Payment
       <CardHeader>
         <CardTitle className="font-headline text-2xl">Submit Payment Proof</CardTitle>
         <CardDescription>
-            You have selected the <span className="font-bold text-primary">{plans[planId] || `Plan ${planId}`}</span>. Please follow the instructions below.
+            You have selected the <span className="font-bold text-primary">{planName}</span>. Please follow the instructions below.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -152,7 +156,7 @@ export function PaymentForm({ referrerId, planId, amount, dailyReturn }: Payment
                 name="userPhone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Your Phone Number</FormLabel>
+                    <FormLabel>Your Phone Number (from which payment was sent)</FormLabel>
                      <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"/>
                         <FormControl>

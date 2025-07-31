@@ -129,7 +129,7 @@ export default function Home() {
                   </CardContent>
                   <CardFooter>
                      <Button asChild className="w-full" size="lg">
-                        <Link href={`/invest?plan=${plan.id}&amount=${plan.price}&daily_return=${plan.dailyReturn}`}>
+                        <Link href={`/register?plan=${plan.id}&amount=${plan.price}&daily_return=${plan.dailyReturn}`}>
                           {plan.cta}
                         </Link>
                       </Button>

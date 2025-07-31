@@ -12,37 +12,55 @@ type ApprovalStatus = "pending" | "approved" | "rejected";
 
 function Timer() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const phone = searchParams.get('phone');
-  
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const [status, setStatus] = useState<ApprovalStatus>("pending");
-
   const supabase = createClient();
 
   useEffect(() => {
-    if (!phone) {
-        router.push('/');
+    const checkStatus = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/signin');
         return;
-    }
-    // Poll for status changes
-    const interval = setInterval(async () => {
-        const { data, error } = await supabase
-            .from('payment_submissions')
-            .select('status')
-            .eq('account_number', phone)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-        
-        if (data && data.status !== 'pending') {
-            setStatus(data.status as ApprovalStatus);
-            clearInterval(interval);
-        }
-    }, 5000); // Check every 5 seconds
+      }
+      
+      const { data, error } = await supabase
+        .from('payment_submissions')
+        .select('status, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (error || !data) {
+          // If no submission found, maybe user completed payment and is back
+          const { data: profile } = await supabase.from('profiles').select('invested').eq('id', user.id).single();
+          if (profile?.invested) {
+              router.push('/dashboard');
+          } else {
+              // No submission and not invested, go back to invest page
+              router.push('/invest');
+          }
+          return;
+      }
 
+      if (data.status !== 'pending') {
+        setStatus(data.status as ApprovalStatus);
+      } else {
+        // Calculate remaining time
+        const submissionTime = new Date(data.created_at).getTime();
+        const now = new Date().getTime();
+        const elapsed = Math.floor((now - submissionTime) / 1000);
+        const remaining = 600 - elapsed;
+        setTimeLeft(remaining > 0 ? remaining : 0);
+      }
+    };
+    
+    checkStatus();
+
+    const interval = setInterval(checkStatus, 5000); // Poll every 5 seconds
     return () => clearInterval(interval);
-  }, [phone, supabase, router]);
+  }, [supabase, router]);
 
   useEffect(() => {
     if (status !== "pending") return;
@@ -51,18 +69,18 @@ function Timer() {
       return;
     }
 
-    const intervalId = setInterval(() => {
-      setTimeLeft(timeLeft - 1);
+    const timerInterval = setInterval(() => {
+      setTimeLeft(prevTime => prevTime - 1);
     }, 1000);
 
-    return () => clearInterval(intervalId);
+    return () => clearInterval(timerInterval);
   }, [timeLeft, status]);
 
 
   useEffect(() => {
     if (status === "approved") {
       const redirectTimer = setTimeout(() => {
-        router.push(`/register?phone=${phone}`);
+        router.push(`/signin?action=approve`);
       }, 3000);
       return () => clearTimeout(redirectTimer);
     } else if (status === "rejected") {
@@ -71,7 +89,7 @@ function Timer() {
       }, 3000);
       return () => clearTimeout(redirectTimer);
     }
-  }, [status, router, phone]);
+  }, [status, router]);
 
 
   const minutes = Math.floor(timeLeft / 60);
@@ -86,7 +104,7 @@ function Timer() {
           <div className="flex flex-col items-center gap-4 text-green-500">
             <CheckCircle className="h-16 w-16" />
             <p className="text-xl font-semibold">Approved!</p>
-            <p className="text-muted-foreground">Redirecting you to create your account...</p>
+            <p className="text-muted-foreground">Redirecting you...</p>
           </div>
         );
       case "rejected":
@@ -107,7 +125,7 @@ function Timer() {
             >
                 <div className="absolute h-[calc(100%-1rem)] w-[calc(100%-1rem)] bg-background rounded-full flex items-center justify-center">
                     <span className="text-3xl font-bold font-mono text-foreground">
-                        {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+                        {timeLeft > 0 ? `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}` : '00:00'}
                     </span>
                 </div>
             </div>
