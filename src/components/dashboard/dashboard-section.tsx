@@ -20,7 +20,7 @@ type Referral = {
 export function DashboardSection() {
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({ 
-        totalInvestment: 6000, 
+        totalInvestment: 0, 
         totalEarnings: 0, 
         referralBonus: 0,
     });
@@ -41,7 +41,7 @@ export function DashboardSection() {
             const [profileRes, earningsRes, referralsRes] = await Promise.all([
                 supabase
                     .from('profiles')
-                    .select('invested, balance')
+                    .select('invested, balance, investment_amount')
                     .eq('id', userId)
                     .single(),
                 supabase
@@ -62,7 +62,7 @@ export function DashboardSection() {
                 const referralBonus = referralsRes.data?.reduce((acc, curr) => acc + curr.bonus_amount, 0) || 0;
                 
                 setStats({
-                    totalInvestment: profileRes.data?.invested ? 6000 : 0,
+                    totalInvestment: profileRes.data?.investment_amount || 0,
                     referralBonus: referralBonus,
                     totalEarnings: profileRes.data?.balance || 0,
                 });
@@ -104,7 +104,7 @@ export function DashboardSection() {
                       <Calendar className="h-5 w-5"/>
                       Daily Earnings History
                     </CardTitle>
-                    <CardDescription>Your daily earnings of 200 PKR. Referral bonuses are not shown here.</CardDescription>
+                    <CardDescription>Your plan's daily returns. Referral bonuses are not shown here.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>

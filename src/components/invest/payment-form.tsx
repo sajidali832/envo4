@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "@/hooks/use-toast";
-import { Copy, UploadCloud, Phone, User, Building } from "lucide-react";
+import { Copy, UploadCloud, Phone, User, Building, Landmark } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const paymentSchema = z.object({
@@ -22,11 +22,20 @@ const paymentSchema = z.object({
   screenshot: z.any().refine((files) => files?.length == 1, "A screenshot is required."),
 });
 
-interface PaymentFormProps {
-    referrerId?: string | null;
+const plans: {[key: string]: string} = {
+  "1": "Starter Plan",
+  "2": "Growth Plan",
+  "3": "Pro Investor"
 }
 
-export function PaymentForm({ referrerId }: PaymentFormProps) {
+interface PaymentFormProps {
+    referrerId?: string | null;
+    planId: string;
+    amount: number;
+    dailyReturn: number;
+}
+
+export function PaymentForm({ referrerId, planId, amount, dailyReturn }: PaymentFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const supabase = createClient();
@@ -71,7 +80,10 @@ export function PaymentForm({ referrerId }: PaymentFormProps) {
             payment_platform: values.paymentPlatform,
             screenshot_url: publicUrlData.publicUrl,
             status: 'pending',
-            referrer_id: referrerId || null
+            referrer_id: referrerId || null,
+            investment_plan_id: planId,
+            investment_amount: amount,
+            daily_return_amount: dailyReturn,
         };
 
         const { error: dbError } = await supabase.from('payment_submissions').insert(submissionData);
@@ -100,12 +112,14 @@ export function PaymentForm({ referrerId }: PaymentFormProps) {
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="font-headline text-2xl">Submit Payment Proof</CardTitle>
-        <CardDescription>Follow the instructions below to complete your investment.</CardDescription>
+        <CardDescription>
+            You have selected the <span className="font-bold text-primary">{plans[planId] || `Plan ${planId}`}</span>. Please follow the instructions below.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <div className="rounded-lg border bg-card p-4 space-y-2">
-            <p className="text-sm font-medium">Send 6000 PKR to:</p>
+            <p className="text-sm font-medium">Send <strong className="text-primary">{amount.toLocaleString()} PKR</strong> to:</p>
             <div className="flex items-center justify-between">
               <span className="font-mono text-lg font-bold">03130306344</span>
               <Button variant="ghost" size="icon" onClick={handleCopyToClipboard}>

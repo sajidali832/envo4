@@ -24,7 +24,7 @@ const setupSchema = z.object({
 });
 
 const requestSchema = z.object({
-  amount: z.coerce.number().min(600, "Minimum withdrawal is 600 PKR.").max(1600, "Maximum withdrawal is 1600 PKR."),
+  amount: z.coerce.number().min(600, "Minimum withdrawal is 600 PKR."),
 });
 
 type Withdrawal = {
@@ -39,23 +39,26 @@ type WithdrawalMethod = {
     account_number: string;
 }
 
+type Profile = {
+    balance: number;
+    withdrawal_method: any;
+    investment_plan_id: string;
+}
+
 export function WithdrawalSection() {
   const [withdrawalHistory, setWithdrawalHistory] = useState<Withdrawal[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [successfulWithdrawals, setSuccessfulWithdrawals] = useState(0);
   const [completedReferrals, setCompletedReferrals] = useState(0);
-  const [balance, setBalance] = useState(0);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [isEditingMethod, setIsEditingMethod] = useState(false);
   const [savedMethod, setSavedMethod] = useState<WithdrawalMethod | null>(null);
 
   const supabase = createClient();
-  const showReferralLock = successfulWithdrawals >= 2 && completedReferrals < 2;
-
-  const setupForm = useForm<z.infer<typeof setupSchema>>({
-    resolver: zodResolver(setupSchema),
-    defaultValues: { method: 'easypaisa', accountName: '', accountNumber: '' },
-  });
+  
+  const isPlan3 = profile?.investment_plan_id === '3';
+  const showReferralLock = !isPlan3 && successfulWithdrawals >= 2 && completedReferrals < 2;
 
   const requestForm = useForm<z.infer<typeof requestSchema>>({
     resolver: zodResolver(requestSchema),
@@ -63,6 +66,12 @@ export function WithdrawalSection() {
       amount: 0,
     }
   });
+  
+  const setupForm = useForm<z.infer<typeof setupSchema>>({
+    resolver: zodResolver(setupSchema),
+    defaultValues: { method: 'easypaisa', accountName: '', accountNumber: '' },
+  });
+
 
   const fetchWithdrawalData = async () => {
     setLoading(true);
@@ -81,7 +90,7 @@ export function WithdrawalSection() {
             .order('created_at', { ascending: false }),
         supabase
             .from('profiles')
-            .select('balance, withdrawal_method')
+            .select('balance, withdrawal_method, investment_plan_id')
             .eq('id', user.id)
             .single(),
         supabase
@@ -102,7 +111,7 @@ export function WithdrawalSection() {
          toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch user profile.' });
          setIsEditingMethod(true);
     } else {
-        setBalance(profileRes.data?.balance || 0);
+        setProfile(profileRes.data as Profile);
         const methodData = profileRes.data?.withdrawal_method as any;
         
         if (methodData && methodData.accountName) {
@@ -167,7 +176,7 @@ export function WithdrawalSection() {
         return;
     }
 
-    if (values.amount > balance) {
+    if (values.amount > (profile?.balance || 0)) {
         toast({variant: 'destructive', title: 'Insufficient Funds', description: 'Your requested amount exceeds your available balance.'});
         setIsSubmitting(false);
         return;
@@ -286,7 +295,7 @@ export function WithdrawalSection() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-headline"><Banknote className="h-5 w-5"/>Request Withdrawal</CardTitle>
-            <CardDescription>Min: 600 PKR, Max: 1,600 PKR. Balance: {balance.toLocaleString()} PKR</CardDescription>
+            <CardDescription>Min: 600 PKR. Balance: {(profile?.balance || 0).toLocaleString()} PKR</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...requestForm}>

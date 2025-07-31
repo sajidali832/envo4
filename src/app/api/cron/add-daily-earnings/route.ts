@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     // 1. Get all invested users
     const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, balance')
+        .select('id, balance, daily_return_amount')
         .eq('invested', true);
 
     if (profilesError) {
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     // 4. Prepare data for batch inserts and updates
     const earningsToInsert = usersToPay.map(user => ({
         user_id: user.id,
-        amount: 200,
+        amount: user.daily_return_amount || 0, // Use plan-specific daily return
     }));
     
     // 5. Insert new earnings records
@@ -71,7 +71,8 @@ export async function POST(request: Request) {
     // For large scale, a Postgres function would be much more performant.
     let updatedCount = 0;
     for (const user of usersToPay) {
-        const newBalance = user.balance + 200;
+        const dailyReturn = user.daily_return_amount || 0;
+        const newBalance = user.balance + dailyReturn;
         const { error: balanceUpdateError } = await supabase
             .from('profiles')
             .update({ balance: newBalance })

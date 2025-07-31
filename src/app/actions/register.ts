@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -30,7 +31,7 @@ export async function registerUser(prevState: any, formData: FormData) {
   // 1. Check if payment is approved for the given phone number
   const { data: submission, error: submissionError } = await supabase
     .from('payment_submissions')
-    .select('id, status, referrer_id')
+    .select('id, status, referrer_id, investment_amount, investment_plan_id, daily_return_amount')
     .eq('account_number', phone)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -76,6 +77,8 @@ export async function registerUser(prevState: any, formData: FormData) {
 
   // 4. Create the user profile with initial balance if referred
   const initialBalance = submission.referrer_id ? 200 : 0;
+  
+  const referralBonusAmount = submission.investment_plan_id === '3' ? 800 : 200;
 
   const { error: profileError } = await supabase
     .from('profiles')
@@ -83,6 +86,9 @@ export async function registerUser(prevState: any, formData: FormData) {
       id: user.id,
       username: username,
       email: email,
+      investment_amount: submission.investment_amount,
+      investment_plan_id: submission.investment_plan_id,
+      daily_return_amount: submission.daily_return_amount,
       invested: true,
       investment_date: new Date().toISOString(),
       balance: initialBalance,
@@ -90,10 +96,7 @@ export async function registerUser(prevState: any, formData: FormData) {
 
   if (profileError) {
     // Attempt to clean up the auth user if profile creation fails
-    const { data: adminUser, error: adminError } = await supabase.auth.admin.deleteUser(user.id);
-    if(adminError) {
-        console.error('Failed to cleanup auth user', adminError);
-    }
+    await supabase.auth.admin.deleteUser(user.id);
     return { type: 'error', message: `Could not create user profile: ${profileError.message}` };
   }
 
@@ -104,13 +107,30 @@ export async function registerUser(prevState: any, formData: FormData) {
     .eq('id', submission.id);
 
   if (submission.referrer_id) {
+    // Give bonus to the referrer
+    const { data: referrerProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', submission.referrer_id)
+        .single();
+    
+    if (referrerProfile) {
+        const newBalance = referrerProfile.balance + referralBonusAmount;
+        await supabase
+            .from('profiles')
+            .update({ balance: newBalance })
+            .eq('id', submission.referrer_id);
+    }
+
+    // Create a record in the referrals table
     await supabase
-      .from('referrals')
-      .update({ referred_user_id: user.id })
-      .eq('referrer_id', submission.referrer_id)
-      .is('referred_user_id', null)
-      .order('created_at', { ascending: true }) // Update oldest pending referral
-      .limit(1);
+        .from('referrals')
+        .insert({
+            referrer_id: submission.referrer_id,
+            referred_user_id: user.id,
+            status: 'Invested',
+            bonus_amount: referralBonusAmount
+        });
   }
 
   // 6. Return success

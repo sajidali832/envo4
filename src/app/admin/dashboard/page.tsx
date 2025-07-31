@@ -35,10 +35,11 @@ export default function AdminDashboardPage() {
       .from('profiles')
       .select('*', { count: 'exact', head: true });
 
-    const { data: investedUsers, error: investedError } = await supabase
+    const { data: allProfiles, error: investedError } = await supabase
         .from('profiles')
-        .select('id', { count: 'exact' })
-        .eq('invested', true);
+        .select('investment_amount');
+    
+    const totalInvestment = allProfiles?.reduce((sum, p) => sum + (p.investment_amount || 0), 0) ?? 0;
 
     const { data: approvedWithdrawals, error: withdrawalError } = await supabase
       .from('withdrawals')
@@ -47,23 +48,14 @@ export default function AdminDashboardPage() {
 
     // Fetch data for charts (last 7 days)
     const today = new Date();
-    const dateLabels = Array.from({ length: 7 }).map((_, i) => {
-        const date = subDays(today, 6 - i);
-        return format(date, 'MMM d');
-    }).reverse();
-
     const dateRanges = Array.from({ length: 7 }).map((_, i) => {
-        const date = subDays(today, i);
-        const startOfDay = new Date(date);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(date);
-        endOfDay.setHours(23, 59, 59, 999);
+        const date = subDays(today, 6 - i);
         return {
-            label: format(startOfDay, 'MMM d'),
-            start: startOfDay.toISOString(),
-            end: endOfDay.toISOString(),
+            label: format(date, 'MMM d'),
+            start: subDays(date, 1).toISOString(),
+            end: date.toISOString(),
         };
-    }).reverse();
+    });
 
 
     const userPromises = dateRanges.map(range => 
@@ -90,7 +82,7 @@ export default function AdminDashboardPage() {
 
     setStats({
       totalUsers: userCount ?? 0,
-      totalInvestment: (investedUsers?.length ?? 0) * 6000,
+      totalInvestment: totalInvestment,
       totalWithdrawals: approvedWithdrawals?.reduce((sum, w) => sum + w.amount, 0) ?? 0,
     });
 

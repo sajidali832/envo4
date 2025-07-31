@@ -24,6 +24,7 @@ export function ReferralSection() {
   const [referralLink, setReferralLink] = useState('');
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [loading, setLoading] = useState(true);
+  const [referralBonus, setReferralBonus] = useState(200);
   const supabase = createClient();
   
   useEffect(() => {
@@ -35,8 +36,17 @@ export function ReferralSection() {
             return;
         }
 
+        // Check user's plan to set correct referral bonus
+        const { data: profile } = await supabase.from('profiles').select('investment_plan_id').eq('id', user.id).single();
+        if (profile?.investment_plan_id === '3') {
+            setReferralBonus(800);
+        } else {
+            setReferralBonus(200);
+        }
+
+
         // Set referral link to point to the invest page
-        const link = `${window.location.origin}/invest?ref=${user.id}`;
+        const link = `${window.location.origin}/?ref=${user.id}`;
         setReferralLink(link);
 
         // Fetch referrals made by the current user
@@ -100,7 +110,7 @@ export function ReferralSection() {
         <CardHeader>
           <CardTitle className="font-headline flex items-center gap-2"><Gift className="h-6 w-6"/>Earn More with Referrals!</CardTitle>
           <CardDescription className="text-primary-foreground/80">
-            Invite friends and earn a 200 PKR bonus for each successful referral. Referrals are also required to unlock unlimited withdrawals.
+            Invite friends and earn a {referralBonus} PKR bonus for each successful referral. Referrals are also required to unlock unlimited withdrawals for standard plans.
           </CardDescription>
         </CardHeader>
         <CardContent>

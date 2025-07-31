@@ -3,13 +3,20 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, X, RefreshCcw } from "lucide-react";
+import { Check, X, RefreshCcw, Landmark, GanttChartSquare } from "lucide-react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+
+const plans: {[key: string]: string} = {
+  "1": "Starter Plan",
+  "2": "Growth Plan",
+  "3": "Pro Investor"
+};
 
 type Approval = {
   id: string;
@@ -21,6 +28,9 @@ type Approval = {
   user_email: string;
   referrer_id: string | null;
   user_id: string | null;
+  investment_plan_id: string;
+  investment_amount: number;
+  daily_return_amount: number;
 };
 
 export default function ApprovalsPage() {
@@ -62,52 +72,6 @@ export default function ApprovalsPage() {
     }
   };
 
-  const processReferral = async (referrerId: string, newUserId: string | null) => {
-      // 1. Give 200 PKR bonus to the referrer
-      const { data: referrerProfile, error: fetchError } = await supabase
-          .from('profiles')
-          .select('balance')
-          .eq('id', referrerId)
-          .single();
-      
-      if (fetchError || !referrerProfile) {
-          console.error(`Could not find referrer profile ${referrerId}`, fetchError);
-          // Don't block approval, but log the error
-          toast({ variant: 'destructive', title: 'Referral Error', description: 'Could not find referrer profile.' });
-          return;
-      }
-
-      const newBalance = referrerProfile.balance + 200;
-      const { error: balanceError } = await supabase
-          .from('profiles')
-          .update({ balance: newBalance })
-          .eq('id', referrerId);
-
-      if (balanceError) {
-          console.error(`Failed to update balance for referrer ${referrerId}`, balanceError);
-          toast({ variant: 'destructive', title: 'Referral Error', description: 'Failed to update referrer balance.' });
-          return;
-      }
-
-      // 2. Create a record in the referrals table
-      // The newUserId will be null at this stage, but we can update it later if needed.
-      const { error: referralError } = await supabase
-          .from('referrals')
-          .insert({
-              referrer_id: referrerId,
-              referred_user_id: newUserId, // This might be updated later
-              status: 'Invested',
-              bonus_amount: 200
-          });
-
-      if (referralError) {
-          console.error(`Failed to create referral record for ${referrerId}`, referralError);
-          toast({ variant: 'destructive', title: 'Referral Error', description: 'Failed to create referral record.' });
-      } else {
-          toast({ title: 'Referral Bonus!', description: '200 PKR bonus awarded to referrer.' });
-      }
-  };
-
   const handleDecision = async (approval: Approval, newStatus: 'approved' | 'rejected') => {
     const { error: updateError } = await supabase
       .from('payment_submissions')
@@ -117,11 +81,6 @@ export default function ApprovalsPage() {
     if (updateError) {
       toast({ variant: 'destructive', title: 'Error', description: `Failed to ${newStatus} submission.` });
       return;
-    }
-
-    // If approved and there's a referrer, process the bonus
-    if (newStatus === 'approved' && approval.referrer_id) {
-        await processReferral(approval.referrer_id, approval.user_id);
     }
     
     // The screenshot should be deleted regardless of approval or rejection.
@@ -173,18 +132,30 @@ export default function ApprovalsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {approvals.map((approval) => (
-            <Card key={approval.id}>
+            <Card key={approval.id} className="flex flex-col">
               <CardHeader>
                 <CardTitle>{approval.account_name}</CardTitle>
                 <CardDescription>{approval.account_number} ({approval.payment_platform})</CardDescription>
                 {approval.user_email && <CardDescription className="font-semibold pt-1">{approval.user_email}</CardDescription>}
+                
+                <div className="pt-2 space-y-2 text-sm">
+                   <div className="flex items-center gap-2">
+                        <GanttChartSquare className="h-4 w-4 text-muted-foreground" />
+                        <span>Plan: <Badge variant="secondary">{plans[approval.investment_plan_id] || `Plan ${approval.investment_plan_id}`}</Badge></span>
+                   </div>
+                   <div className="flex items-center gap-2">
+                        <Landmark className="h-4 w-4 text-muted-foreground" />
+                        <span>Amount: <span className="font-semibold">{approval.investment_amount?.toLocaleString()} PKR</span></span>
+                   </div>
+                </div>
+
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 flex-grow">
                  <div className="w-full aspect-[2/3] relative rounded-md overflow-hidden bg-muted">
                     <Image src={approval.screenshot_url} alt="Payment Screenshot" layout="fill" objectFit="contain" />
                  </div>
               </CardContent>
-              <CardFooter className="grid grid-cols-2 gap-2">
+              <CardFooter className="grid grid-cols-2 gap-2 mt-auto">
                 <Button variant="outline" className="w-full border-red-500 text-red-500 hover:bg-red-500 hover:text-white" onClick={() => handleDecision(approval, 'rejected')}>
                   <X className="mr-2 h-4 w-4" /> Reject
                 </Button>
